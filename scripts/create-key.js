@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const dbPath = join(__dirname, '../data/tasks.db');
+const dbPath = join(process.cwd(), 'data/tasks.db');
 
 const db = new Database(dbPath);
 
@@ -39,9 +37,17 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE,
     label TEXT,
+    is_admin INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+// Add is_admin column if it doesn't exist (migration for existing DBs)
+try {
+  db.exec('ALTER TABLE auth_keys ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+} catch (e) {
+  // Column already exists
+}
 
 // Check if timer table has key_id column, if not recreate it
 const timerInfo = db.prepare("PRAGMA table_info(timer)").all();
