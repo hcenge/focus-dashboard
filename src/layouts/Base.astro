@@ -10,7 +10,7 @@ const { title = 'Focus' } = Astro.props;
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>{title}</title>
 
     <!-- PWA -->
@@ -92,6 +92,11 @@ const { title = 'Focus' } = Astro.props;
       button, [role="button"], .action-btn, [onclick], a {
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
+      }
+
+      /* Ensure clicks on button icons pass through to the button */
+      button svg, button path {
+        pointer-events: none;
       }
     </style>
   </head>

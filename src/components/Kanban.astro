@@ -208,9 +208,9 @@ const tasksByStatus = {
   let timerInterval: number | null = null;
   let pendingFocusTask: { taskId: number; taskText: string; taskEl: HTMLElement } | null = null;
 
-  // Timer display mode: 'remaining' or 'until'
-  let timerDisplayMode: 'remaining' | 'until' =
-    (localStorage.getItem('timerDisplayMode') as 'remaining' | 'until') || 'remaining';
+  // Timer display mode: 'remaining' (countdown) or 'until' (end time)
+  // Always defaults to countdown, can toggle by tapping the time display
+  let timerDisplayMode: 'remaining' | 'until' = 'remaining';
 
   // Carbon icons
   const icons = {
@@ -227,7 +227,6 @@ const tasksByStatus = {
 
   function toggleTimerDisplayMode() {
     timerDisplayMode = timerDisplayMode === 'remaining' ? 'until' : 'remaining';
-    localStorage.setItem('timerDisplayMode', timerDisplayMode);
     updateTimerDisplay();
   }
 
@@ -802,7 +801,7 @@ const tasksByStatus = {
   document.addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
 
-    if (target.id === 'timer-play-btn') {
+    if (target.closest('#timer-play-btn')) {
       if (timerState.duration === 0) {
         openTimerModal(true);
       } else if (timerState.is_running) {
@@ -810,22 +809,25 @@ const tasksByStatus = {
       } else {
         await timerAction('start');
       }
+      return;
     }
 
-    if (target.id === 'timer-change-btn') {
+    if (target.closest('#timer-change-btn')) {
       openTimerModal(true);
+      return;
     }
 
-    if (target.id === 'timer-stop-btn') {
+    if (target.closest('#timer-stop-btn')) {
       await fetch('/api/timer', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ duration: 0 })
       });
       await fetchTimerState();
+      return;
     }
 
-    if (target.id === 'focus-timer-time') {
+    if (target.closest('#focus-timer-time')) {
       toggleTimerDisplayMode();
     }
   });
@@ -1162,6 +1164,7 @@ const tasksByStatus = {
   .fullscreen-btn {
     background: none;
     border: none;
+    outline: none;
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -1202,7 +1205,11 @@ const tasksByStatus = {
     height: 100vh;
     z-index: 200;
     background: var(--bg);
-    padding: 24px;
+    padding: 30px;
+    padding-top: max(30px, env(safe-area-inset-top));
+    padding-bottom: max(30px, env(safe-area-inset-bottom));
+    padding-left: max(30px, env(safe-area-inset-left));
+    padding-right: max(30px, env(safe-area-inset-right));
     box-sizing: border-box;
   }
 
@@ -1380,6 +1387,7 @@ const tasksByStatus = {
     width: 100%;
     height: 100%;
     fill: currentColor;
+    pointer-events: none;
   }
 
   :global(.action-btn:active) {
@@ -1532,6 +1540,7 @@ const tasksByStatus = {
     width: 100%;
     height: 100%;
     fill: currentColor;
+    pointer-events: none;
   }
 
   :global(.focus-control-btn:active) {
