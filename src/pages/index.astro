@@ -1,0 +1,47 @@
+---
+import Base from '@/layouts/Base.astro';
+import Clock from '@/components/Clock.astro';
+import WeekCalendar from '@/components/WeekCalendar.astro';
+import Kanban from '@/components/Kanban.astro';
+import db, { type Task } from '@/lib/db';
+
+const keyId = Astro.locals.authKey.id;
+const tasks = db.prepare('SELECT * FROM tasks WHERE key_id = ? ORDER BY status, position').all(keyId) as Task[];
+---
+
+<Base title="Focus">
+  <div class="dashboard">
+    <header class="header">
+      <Clock />
+      <WeekCalendar />
+    </header>
+    <main class="main">
+      <Kanban tasks={tasks} keyId={keyId} />
+    </main>
+  </div>
+</Base>
+
+<style>
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 32px);
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--light-gray);
+    margin-bottom: 16px;
+    min-height: 64px;
+  }
+
+  .main {
+    flex: 1;
+    min-height: 0;
+  }
+</style>

@@ -1,0 +1,1504 @@
+---
+import type { Task } from '@/lib/db';
+import db from '@/lib/db';
+import quotesData from '@/data/quotes.json';
+
+interface Props {
+  tasks: Task[];
+  keyId: number;
+}
+
+const { tasks, keyId } = Astro.props;
+
+// Get current focused task from timer for this user
+const timerRow = db.prepare('SELECT task_id FROM timer WHERE key_id = ?').get(keyId) as { task_id: number | null } | undefined;
+const focusedTaskId = timerRow?.task_id;
+
+// Pick a random quote for empty focus state
+const randomQuote = quotesData.quotes[Math.floor(Math.random() * quotesData.quotes.length)];
+
+const columns = [
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'focus', label: 'Focus' },
+  { id: 'done', label: 'Done' }
+] as const;
+
+const tasksByStatus = {
+  upcoming: tasks.filter(t => t.status === 'upcoming' && t.id !== focusedTaskId),
+  focus: tasks.filter(t => t.id === focusedTaskId),
+  done: tasks.filter(t => t.status === 'done' && t.id !== focusedTaskId)
+};
+---
+
+<div class="kanban">
+  <div class="columns">
+    <!-- Upcoming Column -->
+    <div class="column" data-status="upcoming">
+      <h2 class="column-header">
+        Upcoming
+        <span class="count" data-count="upcoming">{tasksByStatus.upcoming.length}</span>
+      </h2>
+      <div class="tasks" data-column="upcoming">
+        {tasksByStatus.upcoming.map(task => (
+          <div class="task" data-id={task.id}>
+            <span class="task-text">{task.text}</span>
+            <div class="task-actions">
+              <button class="action-btn focus-btn" data-action="focus" title="Focus"><svg viewBox="0 0 32 32"><path d="M30,13A11,11,0,0,0,19,2H11a9,9,0,0,0-9,9v3a5,5,0,0,0,5,5H8.1A5,5,0,0,0,13,23h1.38l4,7,1.73-1-4-6.89A2,2,0,0,0,14.38,21H13a3,3,0,0,1,0-6h1V13H13a5,5,0,0,0-4.9,4H7a3,3,0,0,1-3-3V12H6A3,3,0,0,0,9,9V8H7V9a1,1,0,0,1-1,1H4.08A7,7,0,0,1,11,4h6V6a1,1,0,0,1-1,1H14V9h2a3,3,0,0,0,3-3V4a9,9,0,0,1,8.05,5H26a3,3,0,0,0-3,3v1h2V12a1,1,0,0,1,1-1h1.77A8.76,8.76,0,0,1,28,13v1a5,5,0,0,1-5,5H20v2h3a7,7,0,0,0,3-.68V21a3,3,0,0,1-3,3H22v2h1a5,5,0,0,0,5-5V18.89A7,7,0,0,0,30,14Z"/></svg></button>
+              <button class="action-btn done-btn" data-action="done" title="Done"><svg viewBox="0 0 32 32"><path d="M13 24 4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"/></svg></button>
+            </div>
+          </div>
+        ))}
+        <button class="add-task-btn" id="add-task-btn"><svg viewBox="0 0 32 32"><path d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Focus Column -->
+    <div class="column focus-column" data-status="focus">
+      <h2 class="column-header">Focus</h2>
+      <div class="focus-area" data-column="focus">
+        {tasksByStatus.focus.length > 0 ? (
+          tasksByStatus.focus.map(task => (
+            <div class="focus-card" data-id={task.id}>
+              <div class="focus-task-text">{task.text}</div>
+              <div class="timer-bar-bg">
+                <div class="timer-bar-progress" id="focus-timer-bar"></div>
+              </div>
+              <div class="focus-bottom">
+                <div class="timer-time-container" id="focus-timer-time">
+                  <span class="timer-value">--:--</span>
+                </div>
+                <div class="focus-buttons">
+                  <div class="focus-buttons-row">
+                    <button class="focus-control-btn" id="timer-play-btn" title="Start/Pause"><svg viewBox="0 0 32 32"><path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"/></svg></button>
+                    <button class="focus-control-btn" id="timer-change-btn" title="Change Time"><svg viewBox="0 0 32 32"><path d="M16,30A14,14,0,1,1,30,16,14,14,0,0,1,16,30ZM16,4A12,12,0,1,0,28,16,12,12,0,0,0,16,4Z"/><path d="M20.59 22 15 16.41 15 7 17 7 17 15.58 22 20.59 20.59 22z"/></svg></button>
+                    <button class="focus-control-btn" id="timer-stop-btn" title="Clear Timer"><svg viewBox="0 0 32 32"><path d="M24,8V24H8V8H24m0-2H8A2,2,0,0,0,6,8V24a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V8a2,2,0,0,0-2-2Z"/></svg></button>
+                  </div>
+                  <div class="focus-buttons-row">
+                    <button class="action-btn back-btn" data-action="back" title="Back to Upcoming"><svg viewBox="0 0 32 32"><path d="M14 26 15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"/></svg></button>
+                    <button class="action-btn done-btn" data-action="done" title="Done"><svg viewBox="0 0 32 32"><path d="M13 24 4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"/></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div class="empty-focus">
+            <blockquote class="quote-text">"{randomQuote.quote}"</blockquote>
+            <cite class="quote-author">— {randomQuote.author}, <em>{randomQuote.source}</em></cite>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Done Column -->
+    <div class="column" data-status="done">
+      <h2 class="column-header">
+        Done
+        <span class="count" data-count="done">{tasksByStatus.done.length}</span>
+      </h2>
+      <div class="tasks" data-column="done">
+        {tasksByStatus.done.map(task => (
+          <div class="task" data-id={task.id}>
+            <span class="task-text">{task.text}</span>
+            <div class="task-actions">
+              <button class="action-btn focus-btn" data-action="focus" title="Focus again"><svg viewBox="0 0 32 32"><path d="M30,13A11,11,0,0,0,19,2H11a9,9,0,0,0-9,9v3a5,5,0,0,0,5,5H8.1A5,5,0,0,0,13,23h1.38l4,7,1.73-1-4-6.89A2,2,0,0,0,14.38,21H13a3,3,0,0,1,0-6h1V13H13a5,5,0,0,0-4.9,4H7a3,3,0,0,1-3-3V12H6A3,3,0,0,0,9,9V8H7V9a1,1,0,0,1-1,1H4.08A7,7,0,0,1,11,4h6V6a1,1,0,0,1-1,1H14V9h2a3,3,0,0,0,3-3V4a9,9,0,0,1,8.05,5H26a3,3,0,0,0-3,3v1h2V12a1,1,0,0,1,1-1h1.77A8.76,8.76,0,0,1,28,13v1a5,5,0,0,1-5,5H20v2h3a7,7,0,0,0,3-.68V21a3,3,0,0,1-3,3H22v2h1a5,5,0,0,0,5-5V18.89A7,7,0,0,0,30,14Z"/></svg></button>
+              <button class="action-btn back-btn" data-action="upcoming" title="Move to Upcoming"><svg viewBox="0 0 32 32"><path d="M14 26 15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"/></svg></button>
+              <button class="action-btn delete-btn" data-action="delete" title="Delete"><svg viewBox="0 0 32 32"><path d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"/></svg></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Task Modal -->
+<div class="add-modal" id="add-modal">
+  <div class="add-modal-backdrop" id="add-modal-backdrop"></div>
+  <div class="add-modal-content">
+    <h2 class="add-modal-title">Add Task</h2>
+    <div class="add-modal-inputs" id="add-modal-inputs">
+      <input type="text" class="add-task-input" placeholder="Enter task..." />
+    </div>
+    <div class="add-modal-actions">
+      <button class="add-modal-btn secondary" id="add-another-btn"><svg viewBox="0 0 32 32"><path d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"/></svg></button>
+      <button class="add-modal-btn cancel" id="add-cancel-btn">Cancel</button>
+      <button class="add-modal-btn confirm" id="add-confirm-btn">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Timer Modal -->
+<div class="timer-modal" id="timer-modal">
+  <div class="timer-modal-backdrop" id="timer-modal-backdrop"></div>
+  <div class="timer-modal-content">
+    <h2 class="timer-modal-title" id="timer-modal-title">Set Focus Time</h2>
+
+    <!-- Tab switcher -->
+    <div class="timer-tabs">
+      <button class="timer-tab active" data-tab="until">Until</button>
+      <button class="timer-tab" data-tab="duration">Duration</button>
+    </div>
+
+    <!-- Until time picker -->
+    <div class="timer-panel active" id="panel-until">
+      <div class="time-picker">
+        <div class="picker-column">
+          <div class="picker-highlight"></div>
+          <div class="picker-scroll" id="until-hours"></div>
+        </div>
+        <div class="picker-column">
+          <div class="picker-highlight"></div>
+          <div class="picker-scroll" id="until-minutes"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duration picker -->
+    <div class="timer-panel" id="panel-duration">
+      <div class="time-picker">
+        <div class="picker-column">
+          <div class="picker-highlight"></div>
+          <div class="picker-scroll" id="duration-hours"></div>
+          <div class="picker-label">h</div>
+        </div>
+        <div class="picker-column">
+          <div class="picker-highlight"></div>
+          <div class="picker-scroll" id="duration-minutes"></div>
+          <div class="picker-label">m</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="timer-modal-actions">
+      <button class="timer-modal-btn no-timer" id="timer-no-timer-btn">No Timer</button>
+      <button class="timer-modal-btn cancel" id="timer-cancel-btn">Cancel</button>
+      <button class="timer-modal-btn confirm" id="timer-confirm-btn">Start</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface Task {
+    id: number;
+    text: string;
+    status: string;
+  }
+
+  interface TimerState {
+    duration: number;
+    remaining: number;
+    is_running: boolean;
+    task_id: number | null;
+  }
+
+  let timerState: TimerState = {
+    duration: 0,
+    remaining: 0,
+    is_running: false,
+    task_id: null
+  };
+
+  let timerInterval: number | null = null;
+  let pendingFocusTask: { taskId: number; taskText: string; taskEl: HTMLElement } | null = null;
+
+  // Timer display mode: 'remaining' or 'until'
+  let timerDisplayMode: 'remaining' | 'until' =
+    (localStorage.getItem('timerDisplayMode') as 'remaining' | 'until') || 'remaining';
+
+  // Carbon icons
+  const icons = {
+    time: '<svg viewBox="0 0 32 32"><path d="M16,30A14,14,0,1,1,30,16,14,14,0,0,1,16,30ZM16,4A12,12,0,1,0,28,16,12,12,0,0,0,16,4Z"/><path d="M20.59 22 15 16.41 15 7 17 7 17 15.58 22 20.59 20.59 22z"/></svg>',
+    brain: '<svg viewBox="0 0 32 32"><path d="M30,13A11,11,0,0,0,19,2H11a9,9,0,0,0-9,9v3a5,5,0,0,0,5,5H8.1A5,5,0,0,0,13,23h1.38l4,7,1.73-1-4-6.89A2,2,0,0,0,14.38,21H13a3,3,0,0,1,0-6h1V13H13a5,5,0,0,0-4.9,4H7a3,3,0,0,1-3-3V12H6A3,3,0,0,0,9,9V8H7V9a1,1,0,0,1-1,1H4.08A7,7,0,0,1,11,4h6V6a1,1,0,0,1-1,1H14V9h2a3,3,0,0,0,3-3V4a9,9,0,0,1,8.05,5H26a3,3,0,0,0-3,3v1h2V12a1,1,0,0,1,1-1h1.77A8.76,8.76,0,0,1,28,13v1a5,5,0,0,1-5,5H20v2h3a7,7,0,0,0,3-.68V21a3,3,0,0,1-3,3H22v2h1a5,5,0,0,0,5-5V18.89A7,7,0,0,0,30,14Z"/></svg>',
+    checkmark: '<svg viewBox="0 0 32 32"><path d="M13 24 4 15 5.414 13.586 13 21.171 26.586 7.586 28 9 13 24z"/></svg>',
+    arrowLeft: '<svg viewBox="0 0 32 32"><path d="M14 26 15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"/></svg>',
+    close: '<svg viewBox="0 0 32 32"><path d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"/></svg>',
+    play: '<svg viewBox="0 0 32 32"><path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"/></svg>',
+    pause: '<svg viewBox="0 0 32 32"><path d="M12,8V24H8V8h4m0-2H8A2,2,0,0,0,6,8V24a2,2,0,0,0,2,2h4a2,2,0,0,0,2-2V8a2,2,0,0,0-2-2Z"/><path d="M24,8V24H20V8h4m0-2H20a2,2,0,0,0-2,2V24a2,2,0,0,0,2,2h4a2,2,0,0,0,2-2V8a2,2,0,0,0-2-2Z"/></svg>',
+    stop: '<svg viewBox="0 0 32 32"><path d="M24,8V24H8V8H24m0-2H8A2,2,0,0,0,6,8V24a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V8a2,2,0,0,0-2-2Z"/></svg>',
+    add: '<svg viewBox="0 0 32 32"><path d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"/></svg>'
+  };
+
+  function toggleTimerDisplayMode() {
+    timerDisplayMode = timerDisplayMode === 'remaining' ? 'until' : 'remaining';
+    localStorage.setItem('timerDisplayMode', timerDisplayMode);
+    updateTimerDisplay();
+  }
+
+  // Timer functions
+  async function fetchTimerState() {
+    try {
+      const res = await fetch('/api/timer');
+      if (res.ok) {
+        timerState = await res.json();
+        updateTimerDisplay();
+      }
+    } catch (e) {}
+  }
+
+  function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      const remainMins = mins % 60;
+      return remainMins > 0 ? `${hrs}hr ${remainMins}min` : `${hrs}hr`;
+    }
+    return `${mins}min`;
+  }
+
+  function updateTimerDisplay() {
+    const timeEl = document.getElementById('focus-timer-time');
+    const progressBar = document.getElementById('focus-timer-bar');
+    const playBtn = document.getElementById('timer-play-btn');
+
+    if (timerState.duration === 0) {
+      if (timeEl) timeEl.innerHTML = '<span class="timer-value">--:--</span>';
+      if (progressBar) progressBar.style.width = '0%';
+      if (playBtn) playBtn.innerHTML = icons.time;
+    } else {
+      if (timeEl) {
+        if (timerDisplayMode === 'until' && timerState.is_running) {
+          // Show end time with label and duration
+          const endTime = new Date(Date.now() + timerState.remaining * 1000);
+          const hours = endTime.getHours();
+          const mins = endTime.getMinutes();
+          const ampm = hours >= 12 ? 'pm' : 'am';
+          const h = hours % 12 || 12;
+          const timeStr = `${h}:${mins.toString().padStart(2, '0')}${ampm}`;
+          const durationStr = formatDuration(timerState.duration);
+          timeEl.innerHTML = `
+            <span class="timer-label">until</span>
+            <span class="timer-value">${timeStr}</span>
+            <span class="timer-duration">${durationStr}</span>
+          `;
+        } else {
+          // Show remaining time
+          const minutes = Math.floor(timerState.remaining / 60);
+          const seconds = timerState.remaining % 60;
+          timeEl.innerHTML = `<span class="timer-value">${minutes}:${seconds.toString().padStart(2, '0')}</span>`;
+        }
+      }
+
+      if (progressBar) {
+        const progress = (timerState.remaining / timerState.duration) * 100;
+        progressBar.style.width = `${progress}%`;
+      }
+
+      if (playBtn) playBtn.innerHTML = timerState.is_running ? icons.pause : icons.play;
+    }
+  }
+
+  function startTimerTick() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = window.setInterval(() => {
+      if (timerState.is_running && timerState.remaining > 0) {
+        timerState.remaining--;
+        updateTimerDisplay();
+        if (timerState.remaining === 0) {
+          timerState.is_running = false;
+          updateTimerDisplay();
+        }
+      }
+    }, 1000);
+  }
+
+  async function timerAction(action: string) {
+    const res = await fetch('/api/timer', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    if (res.ok) {
+      timerState = await res.json();
+      updateTimerDisplay();
+    }
+  }
+
+  // Counts
+  function updateCounts() {
+    const upcomingCount = document.querySelector('[data-column="upcoming"]')?.children.length || 0;
+    const doneCount = document.querySelector('[data-column="done"]')?.children.length || 0;
+    const upcomingCountEl = document.querySelector('[data-count="upcoming"]');
+    const doneCountEl = document.querySelector('[data-count="done"]');
+    if (upcomingCountEl) upcomingCountEl.textContent = String(upcomingCount);
+    if (doneCountEl) doneCountEl.textContent = String(doneCount);
+  }
+
+  // Task element creation
+  function createTaskElement(task: Task, column: 'upcoming' | 'done'): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'task';
+    div.dataset.id = String(task.id);
+
+    let buttons = '';
+    if (column === 'upcoming') {
+      buttons = `
+        <button class="action-btn focus-btn" data-action="focus" title="Focus">${icons.brain}</button>
+        <button class="action-btn done-btn" data-action="done" title="Done">${icons.checkmark}</button>
+      `;
+    } else {
+      buttons = `
+        <button class="action-btn focus-btn" data-action="focus" title="Focus again">${icons.brain}</button>
+        <button class="action-btn back-btn" data-action="upcoming" title="Move to Upcoming">${icons.arrowLeft}</button>
+        <button class="action-btn delete-btn" data-action="delete" title="Delete">${icons.close}</button>
+      `;
+    }
+
+    div.innerHTML = `
+      <span class="task-text">${task.text}</span>
+      <div class="task-actions">${buttons}</div>
+    `;
+    return div;
+  }
+
+  function createFocusCard(task: Task): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'focus-card';
+    div.dataset.id = String(task.id);
+    div.innerHTML = `
+      <div class="focus-task-text">${task.text}</div>
+      <div class="timer-bar-bg">
+        <div class="timer-bar-progress" id="focus-timer-bar"></div>
+      </div>
+      <div class="focus-bottom">
+        <div class="timer-time-container" id="focus-timer-time">
+          <span class="timer-value">--:--</span>
+        </div>
+        <div class="focus-buttons">
+          <div class="focus-buttons-row">
+            <button class="focus-control-btn" id="timer-play-btn" title="Start/Pause">${icons.play}</button>
+            <button class="focus-control-btn" id="timer-change-btn" title="Change Time">${icons.time}</button>
+            <button class="focus-control-btn" id="timer-stop-btn" title="Clear Timer">${icons.stop}</button>
+          </div>
+          <div class="focus-buttons-row">
+            <button class="action-btn back-btn" data-action="back" title="Back to Upcoming">${icons.arrowLeft}</button>
+            <button class="action-btn done-btn" data-action="done" title="Done">${icons.checkmark}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return div;
+  }
+
+  const quotes = [
+    { quote: "The most important step a person can take is always the next one.", author: "Brandon Sanderson", source: "Oathbringer" },
+    { quote: "Fear is the mind-killer.", author: "Frank Herbert", source: "Dune" },
+    { quote: "All we have to decide is what to do with the time that is given us.", author: "J.R.R. Tolkien", source: "The Fellowship of the Ring" },
+    { quote: "Tell me, what is it you plan to do with your one wild and precious life?", author: "Mary Oliver", source: "The Summer Day" },
+    { quote: "The cave you fear to enter holds the treasure you seek.", author: "Joseph Campbell", source: "The Hero with a Thousand Faces" },
+    { quote: "It is good to have an end to journey toward; but it is the journey that matters, in the end.", author: "Ursula K. Le Guin", source: "The Left Hand of Darkness" },
+    { quote: "The beginning is always today.", author: "Mary Shelley", source: "Frankenstein" },
+    { quote: "Life before death, strength before weakness, journey before destination.", author: "Brandon Sanderson", source: "The Way of Kings" },
+    { quote: "Pay attention, be astonished, tell about it.", author: "Mary Oliver", source: "Sometimes" },
+    { quote: "To light a candle is to cast a shadow.", author: "Ursula K. Le Guin", source: "A Wizard of Earthsea" }
+  ];
+
+  function showEmptyFocus() {
+    const focusColumn = document.querySelector('[data-column="focus"]');
+    if (focusColumn && focusColumn.children.length === 0) {
+      const q = quotes[Math.floor(Math.random() * quotes.length)];
+      const empty = document.createElement('div');
+      empty.className = 'empty-focus';
+      empty.innerHTML = `
+        <blockquote class="quote-text">"${q.quote}"</blockquote>
+        <cite class="quote-author">— ${q.author}, <em>${q.source}</em></cite>
+      `;
+      focusColumn.appendChild(empty);
+    }
+  }
+
+  function removeEmptyFocus() {
+    document.querySelector('.empty-focus')?.remove();
+  }
+
+  // Add task modal
+  function openAddModal() {
+    const inputsContainer = document.getElementById('add-modal-inputs');
+    if (inputsContainer) {
+      inputsContainer.innerHTML = '<input type="text" class="add-task-input" placeholder="Enter task..." />';
+    }
+    document.getElementById('add-modal')?.classList.add('open');
+    (inputsContainer?.querySelector('.add-task-input') as HTMLInputElement)?.focus();
+  }
+
+  function closeAddModal() {
+    document.getElementById('add-modal')?.classList.remove('open');
+  }
+
+  function addAnotherInput() {
+    const inputsContainer = document.getElementById('add-modal-inputs');
+    if (inputsContainer) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'add-task-input';
+      input.placeholder = 'Enter task...';
+      inputsContainer.appendChild(input);
+      input.focus();
+    }
+  }
+
+  document.getElementById('add-task-btn')?.addEventListener('click', openAddModal);
+  document.getElementById('add-modal-backdrop')?.addEventListener('click', closeAddModal);
+  document.getElementById('add-cancel-btn')?.addEventListener('click', closeAddModal);
+  document.getElementById('add-another-btn')?.addEventListener('click', addAnotherInput);
+
+  document.getElementById('add-confirm-btn')?.addEventListener('click', async () => {
+    const inputs = document.querySelectorAll('.add-task-input') as NodeListOf<HTMLInputElement>;
+    const texts = Array.from(inputs).map(i => i.value.trim()).filter(t => t.length > 0);
+    if (texts.length === 0) return;
+
+    const column = document.querySelector('[data-column="upcoming"]');
+    const addBtn = document.getElementById('add-task-btn');
+    for (const text of texts) {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, status: 'upcoming' })
+      });
+      if (res.ok) {
+        const task = await res.json() as Task;
+        column?.insertBefore(createTaskElement(task, 'upcoming'), addBtn);
+      }
+    }
+    updateCounts();
+    closeAddModal();
+  });
+
+  document.getElementById('add-modal-inputs')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        document.getElementById('add-confirm-btn')?.click();
+      } else {
+        addAnotherInput();
+      }
+    }
+  });
+
+  // Timer modal
+  let activeTab = 'until';
+  let selectedUntilHour = 0;
+  let selectedUntilMinute = 0;
+  let selectedDurationHours = 0;
+  let selectedDurationMinutes = 30;
+
+  const ITEM_HEIGHT = 40;
+
+  function populatePicker(container: HTMLElement, values: string[], selectedIndex: number, onSelect: (index: number) => void) {
+    container.innerHTML = '';
+
+    // Add padding for centering (one item height above and below)
+    const padTop = document.createElement('div');
+    padTop.className = 'picker-pad';
+    container.appendChild(padTop);
+
+    values.forEach((val, i) => {
+      const item = document.createElement('div');
+      item.className = 'picker-item' + (i === selectedIndex ? ' selected' : '');
+      item.textContent = val;
+      item.dataset.index = String(i);
+      container.appendChild(item);
+    });
+
+    const padBottom = document.createElement('div');
+    padBottom.className = 'picker-pad';
+    container.appendChild(padBottom);
+
+    let isScrolling = false;
+
+    function scrollToIndex(index: number, smooth = true) {
+      const clampedIndex = Math.max(0, Math.min(values.length - 1, index));
+      isScrolling = true;
+
+      if (smooth) {
+        container.scrollTo({ top: clampedIndex * ITEM_HEIGHT, behavior: 'smooth' });
+        setTimeout(() => { isScrolling = false; }, 300);
+      } else {
+        container.scrollTop = clampedIndex * ITEM_HEIGHT;
+        isScrolling = false;
+      }
+
+      container.querySelectorAll('.picker-item').forEach((el, i) => {
+        el.classList.toggle('selected', i === clampedIndex);
+      });
+      onSelect(clampedIndex);
+    }
+
+    // Handle scroll end
+    let scrollTimeout: number;
+    container.addEventListener('scroll', () => {
+      if (isScrolling) return;
+
+      clearTimeout(scrollTimeout);
+      scrollTimeout = window.setTimeout(() => {
+        const index = Math.round(container.scrollTop / ITEM_HEIGHT);
+        scrollToIndex(index, false);
+      }, 150);
+    });
+
+    // Handle tap to select
+    container.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('picker-item')) {
+        const index = parseInt(target.dataset.index || '0');
+        scrollToIndex(index, true);
+      }
+    });
+
+    // Initial scroll without animation
+    scrollToIndex(selectedIndex, false);
+  }
+
+  function getMinHourForUntil(): number {
+    const now = new Date();
+    return now.getHours();
+  }
+
+  function getMinMinuteForUntil(hour: number): number {
+    const now = new Date();
+    if (hour > now.getHours()) return 0;
+    // Round up to next 5 min
+    return Math.ceil((now.getMinutes() + 1) / 5) * 5;
+  }
+
+  function populateUntilPickers() {
+    const now = new Date();
+    const minHour = now.getHours();
+    const hours: string[] = [];
+
+    // Generate hours from now until end of day + next day
+    for (let h = minHour; h < 24; h++) {
+      hours.push(String(h).padStart(2, '0'));
+    }
+    for (let h = 0; h < minHour; h++) {
+      hours.push(String(h).padStart(2, '0'));
+    }
+
+    selectedUntilHour = minHour;
+
+    const hoursContainer = document.getElementById('until-hours');
+    if (hoursContainer) {
+      populatePicker(hoursContainer, hours, 0, (index) => {
+        selectedUntilHour = parseInt(hours[index]);
+        updateUntilMinutes();
+      });
+    }
+
+    updateUntilMinutes();
+  }
+
+  function updateUntilMinutes() {
+    const now = new Date();
+    const minMinute = getMinMinuteForUntil(selectedUntilHour);
+    const minutes: string[] = [];
+
+    // 5 minute increments
+    const start = selectedUntilHour === now.getHours() ? minMinute : 0;
+    for (let m = start; m < 60; m += 5) {
+      minutes.push(String(m).padStart(2, '0'));
+    }
+
+    if (minutes.length === 0) {
+      minutes.push('00');
+    }
+
+    selectedUntilMinute = parseInt(minutes[0]);
+
+    const minutesContainer = document.getElementById('until-minutes');
+    if (minutesContainer) {
+      populatePicker(minutesContainer, minutes, 0, (index) => {
+        selectedUntilMinute = parseInt(minutes[index]);
+      });
+    }
+  }
+
+  function populateDurationPickers() {
+    const hours = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const minutes: string[] = [];
+    for (let m = 0; m < 60; m += 5) {
+      minutes.push(String(m).padStart(2, '0'));
+    }
+
+    const hoursContainer = document.getElementById('duration-hours');
+    if (hoursContainer) {
+      populatePicker(hoursContainer, hours, selectedDurationHours, (index) => {
+        selectedDurationHours = parseInt(hours[index]);
+      });
+    }
+
+    const minutesContainer = document.getElementById('duration-minutes');
+    if (minutesContainer) {
+      const minIndex = minutes.indexOf(String(selectedDurationMinutes).padStart(2, '0'));
+      populatePicker(minutesContainer, minutes, minIndex >= 0 ? minIndex : 6, (index) => {
+        selectedDurationMinutes = parseInt(minutes[index]);
+      });
+    }
+  }
+
+  function switchTab(tab: string) {
+    activeTab = tab;
+    document.querySelectorAll('.timer-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    document.querySelectorAll('.timer-panel').forEach(p => {
+      p.classList.toggle('active', p.id === `panel-${tab}`);
+    });
+  }
+
+  function openTimerModal(isChange = false) {
+    const title = document.getElementById('timer-modal-title');
+    if (title) title.textContent = isChange ? 'Change Timer' : 'Set Focus Time';
+
+    populateUntilPickers();
+    populateDurationPickers();
+    switchTab('until');
+
+    document.getElementById('timer-modal')?.classList.add('open');
+  }
+
+  function closeTimerModal() {
+    document.getElementById('timer-modal')?.classList.remove('open');
+    pendingFocusTask = null;
+  }
+
+  function getSelectedMinutes(): number {
+    const now = new Date();
+
+    if (activeTab === 'until') {
+      const target = new Date(now);
+      target.setHours(selectedUntilHour, selectedUntilMinute, 0, 0);
+
+      // If target is earlier than now, it's tomorrow
+      if (target <= now) {
+        target.setDate(target.getDate() + 1);
+      }
+
+      return Math.round((target.getTime() - now.getTime()) / 60000);
+    } else {
+      return selectedDurationHours * 60 + selectedDurationMinutes;
+    }
+  }
+
+  document.getElementById('timer-modal-backdrop')?.addEventListener('click', closeTimerModal);
+  document.getElementById('timer-cancel-btn')?.addEventListener('click', closeTimerModal);
+
+  document.querySelectorAll('.timer-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchTab((tab as HTMLElement).dataset.tab || 'until');
+    });
+  });
+
+  document.getElementById('timer-confirm-btn')?.addEventListener('click', async () => {
+    const minutes = getSelectedMinutes();
+    if (minutes > 0) {
+      await selectTimerMinutes(minutes);
+    }
+  });
+
+  document.getElementById('timer-no-timer-btn')?.addEventListener('click', async () => {
+    await selectTimerMinutes(0);
+  });
+
+  async function selectTimerMinutes(minutes: number) {
+    if (pendingFocusTask) {
+      await moveTofocus(pendingFocusTask.taskId, pendingFocusTask.taskText, pendingFocusTask.taskEl, minutes);
+      pendingFocusTask = null;
+    } else {
+      const duration = minutes * 60;
+      await fetch('/api/timer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration })
+      });
+      await fetchTimerState();
+      if (minutes > 0) {
+        await timerAction('start');
+      }
+    }
+    closeTimerModal();
+  }
+
+
+  async function moveTofocus(taskId: number, taskText: string, taskEl: HTMLElement, minutes: number) {
+    // Clear current focus if any
+    const currentFocused = document.querySelector('.focus-card');
+    if (currentFocused) {
+      const currentId = currentFocused.dataset.id;
+      const currentText = currentFocused.querySelector('.focus-task-text')?.textContent || '';
+      await fetch(`/api/tasks/${currentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'upcoming' })
+      });
+      currentFocused.remove();
+      const upcomingCol = document.querySelector('[data-column="upcoming"]');
+      const addBtnRef = document.getElementById('add-task-btn');
+      upcomingCol?.insertBefore(
+        createTaskElement({ id: Number(currentId), text: currentText, status: 'upcoming' }, 'upcoming'),
+        addBtnRef
+      );
+    }
+
+    // Set timer
+    const body: any = { task_id: taskId };
+    if (minutes > 0) {
+      body.duration = minutes * 60;
+    } else {
+      body.duration = 0;
+    }
+    await fetch('/api/timer', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    // Move task to focus
+    taskEl?.remove();
+    removeEmptyFocus();
+    const focusColumn = document.querySelector('[data-column="focus"]');
+    focusColumn?.appendChild(createFocusCard({ id: taskId, text: taskText, status: 'focus' }));
+
+    await fetchTimerState();
+    if (minutes > 0) {
+      await timerAction('start');
+    }
+    updateCounts();
+  }
+
+  // Timer control buttons (delegated)
+  document.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+
+    if (target.id === 'timer-play-btn') {
+      if (timerState.duration === 0) {
+        openTimerModal(true);
+      } else if (timerState.is_running) {
+        await timerAction('pause');
+      } else {
+        await timerAction('start');
+      }
+    }
+
+    if (target.id === 'timer-change-btn') {
+      openTimerModal(true);
+    }
+
+    if (target.id === 'timer-stop-btn') {
+      await fetch('/api/timer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration: 0 })
+      });
+      await fetchTimerState();
+    }
+
+    if (target.id === 'focus-timer-time') {
+      toggleTimerDisplayMode();
+    }
+  });
+
+  // Handle task actions
+  document.querySelector('.kanban')?.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains('action-btn')) return;
+
+    const taskEl = target.closest('.task, .focus-card') as HTMLElement | null;
+    if (!taskEl) return;
+
+    const taskId = taskEl.dataset.id;
+    const action = target.dataset.action;
+    const taskText = taskEl.querySelector('.task-text, .focus-task-text')?.textContent || '';
+    const isFocusCard = taskEl.classList.contains('focus-card');
+
+    if (action === 'focus') {
+      pendingFocusTask = { taskId: Number(taskId), taskText, taskEl };
+      openTimerModal(false);
+    }
+
+    if (action === 'done') {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' })
+      });
+
+      if (res.ok) {
+        if (isFocusCard) {
+          await fetch('/api/timer', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: null, duration: 0 })
+          });
+        }
+        taskEl.remove();
+        document.querySelector('[data-column="done"]')?.appendChild(
+          createTaskElement({ id: Number(taskId), text: taskText, status: 'done' }, 'done')
+        );
+        if (isFocusCard) showEmptyFocus();
+        updateCounts();
+      }
+    }
+
+    if (action === 'back' || action === 'upcoming') {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'upcoming' })
+      });
+
+      if (res.ok) {
+        if (isFocusCard) {
+          await fetch('/api/timer', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: null, duration: 0 })
+          });
+        }
+        taskEl.remove();
+        const upcomingColumn = document.querySelector('[data-column="upcoming"]');
+        const addButton = document.getElementById('add-task-btn');
+        upcomingColumn?.insertBefore(
+          createTaskElement({ id: Number(taskId), text: taskText, status: 'upcoming' }, 'upcoming'),
+          addButton
+        );
+        if (isFocusCard) showEmptyFocus();
+        updateCounts();
+      }
+    }
+
+    if (action === 'delete') {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      if (res.ok) {
+        taskEl.remove();
+        updateCounts();
+      }
+    }
+  });
+
+  // Initialize
+  fetchTimerState().then(() => {
+    startTimerTick();
+    updateTimerDisplay();
+  });
+  setInterval(fetchTimerState, 10000);
+</script>
+
+<style>
+  .kanban {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .add-task-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--bg);
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    color: var(--gray);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .add-task-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .add-task-btn:hover, .add-task-btn:active {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+
+  /* Add Modal */
+  .add-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+  }
+
+  .add-modal.open {
+    display: block;
+  }
+
+  .add-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .add-modal-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg);
+    border: 2px solid var(--fg);
+    border-radius: 12px;
+    padding: 24px;
+    width: 90vw;
+    max-width: 400px;
+  }
+
+  .add-modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  .add-modal-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  :global(.add-task-input) {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+  }
+
+  :global(.add-task-input:focus) {
+    outline: none;
+    border-color: var(--fg);
+  }
+
+  .add-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    justify-content: center;
+  }
+
+  .add-modal-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .add-modal-btn.secondary {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    color: var(--gray);
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .add-modal-btn.secondary svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .add-modal-btn.secondary:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+
+  .add-modal-btn.cancel {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    color: var(--fg);
+  }
+
+  .add-modal-btn.confirm {
+    background: var(--fg);
+    border: 2px solid var(--fg);
+    color: var(--bg);
+  }
+
+  .columns {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .focus-column {
+    flex: 1.2;
+  }
+
+  .column-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .count {
+    background: var(--light-gray);
+    color: var(--gray);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+  }
+
+  .tasks {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .empty-focus {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--gray);
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    text-align: center;
+    gap: 8px;
+  }
+
+  :global(.quote-text) {
+    font-size: 1rem;
+    font-style: italic;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  :global(.quote-author) {
+    font-size: 0.8rem;
+    font-style: normal;
+  }
+
+  :global(.quote-author em) {
+    font-style: italic;
+  }
+
+  :global(.task) {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  :global(.focused-task) {
+    border-color: var(--fg);
+    border-width: 3px;
+  }
+
+  :global(.task-text) {
+    font-size: 0.9rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.task-actions) {
+    display: flex;
+    gap: 6px;
+  }
+
+  :global(.action-btn) {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  :global(.action-btn svg) {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+  }
+
+  :global(.action-btn:hover), :global(.action-btn:active) {
+    background: var(--light-gray);
+  }
+
+  :global(.focus-btn) {
+    border-color: var(--fg);
+  }
+
+  :global(.focus-btn:hover), :global(.focus-btn:active) {
+    background: var(--fg);
+    color: var(--bg);
+  }
+
+  :global(.done-btn:hover), :global(.done-btn:active) {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  :global(.delete-btn:hover), :global(.delete-btn:active) {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  /* Focus Area */
+  .focus-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :global(.focus-card) {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    border: 3px solid var(--fg);
+    border-radius: 8px;
+    gap: 12px;
+  }
+
+  :global(.focus-task-text) {
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.timer-bar-bg) {
+    width: 100%;
+    height: 8px;
+    background: var(--light-gray);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  :global(.timer-bar-progress) {
+    height: 100%;
+    background: var(--fg);
+    border-radius: 4px;
+    width: 100%;
+  }
+
+  :global(.focus-bottom) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+
+  :global(.timer-time-container) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+
+  :global(.timer-label) {
+    font-size: 0.65rem;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :global(.timer-value) {
+    font-size: 1.5rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :global(.timer-duration) {
+    font-size: 0.7rem;
+    color: var(--gray);
+  }
+
+  :global(.focus-buttons) {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  :global(.focus-buttons-row) {
+    display: flex;
+    gap: 6px;
+  }
+
+  :global(.focus-control-btn) {
+    width: 36px;
+    height: 36px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    color: var(--gray);
+  }
+
+  :global(.focus-control-btn svg) {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+  }
+
+  :global(.focus-control-btn:hover), :global(.focus-control-btn:active) {
+    background: var(--light-gray);
+    color: var(--fg);
+  }
+
+  /* Timer Modal */
+  .timer-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+  }
+
+  .timer-modal.open {
+    display: block;
+  }
+
+  .timer-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .timer-modal-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg);
+    border: 2px solid var(--fg);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 320px;
+    max-width: 90vw;
+  }
+
+  .timer-modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .timer-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    background: var(--light-gray);
+    border-radius: 8px;
+    padding: 4px;
+  }
+
+  .timer-tab {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--gray);
+  }
+
+  .timer-tab.active {
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  .timer-panel {
+    display: none;
+  }
+
+  .timer-panel.active {
+    display: block;
+  }
+
+  .time-picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 0;
+  }
+
+  .picker-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .picker-scroll {
+    height: 120px;
+    width: 70px;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    background: var(--bg);
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+
+  .picker-scroll::before,
+  .picker-scroll::after {
+    content: '';
+    position: sticky;
+    left: 0;
+    right: 0;
+    height: 40px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .picker-scroll::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--bg) 0%, transparent 100%);
+  }
+
+  .picker-scroll::after {
+    bottom: 0;
+    background: linear-gradient(to top, var(--bg) 0%, transparent 100%);
+  }
+
+  .picker-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .picker-highlight {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    height: 40px;
+    border-top: 2px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    pointer-events: none;
+  }
+
+  .picker-pad {
+    height: 40px;
+    scroll-snap-align: center;
+  }
+
+  :global(.picker-item) {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--gray);
+    scroll-snap-align: center;
+    cursor: pointer;
+    transition: color 0.15s, font-size 0.15s;
+  }
+
+  :global(.picker-item.selected) {
+    font-weight: 700;
+    font-size: 1.3rem;
+    color: var(--fg);
+  }
+
+  .picker-separator-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 40px;
+  }
+
+  .picker-separator {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--fg);
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
+
+  .picker-label {
+    font-size: 0.8rem;
+    color: var(--gray);
+    margin-top: 4px;
+  }
+
+  .timer-modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .timer-modal-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .timer-modal-btn.no-timer {
+    background: var(--light-gray);
+    border: 2px solid var(--border);
+  }
+
+  .timer-modal-btn.cancel {
+    background: var(--bg);
+    border: 2px solid var(--border);
+  }
+
+  .timer-modal-btn.confirm {
+    background: var(--fg);
+    border: 2px solid var(--fg);
+    color: var(--bg);
+  }
+</style>

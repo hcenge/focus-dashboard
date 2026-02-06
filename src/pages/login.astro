@@ -1,0 +1,210 @@
+---
+// If already logged in, redirect to home
+const authKey = Astro.cookies.get('auth_key')?.value;
+if (authKey) {
+  const { getKeyByValue } = await import('@/lib/db');
+  if (getKeyByValue(authKey)) {
+    return Astro.redirect('/');
+  }
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Focus Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #000000;
+        --gray: #666666;
+        --light-gray: #e5e5e5;
+        --border: #cccccc;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .login-container {
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: var(--gray);
+        font-size: 0.9rem;
+        margin-bottom: 32px;
+      }
+
+      .key-inputs {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+
+      .key-input {
+        width: 100px;
+        padding: 12px;
+        font-size: 1rem;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        text-align: center;
+        text-transform: lowercase;
+      }
+
+      .key-input:focus {
+        outline: none;
+        border-color: var(--fg);
+      }
+
+      .dot {
+        font-size: 1.5rem;
+        color: var(--gray);
+      }
+
+      .error {
+        color: #c00;
+        font-size: 0.85rem;
+        margin-bottom: 16px;
+        display: none;
+      }
+
+      .error.show {
+        display: block;
+      }
+
+      .login-btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 1rem;
+        font-weight: 600;
+        background: var(--fg);
+        color: var(--bg);
+        border: 2px solid var(--fg);
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .login-btn:hover {
+        opacity: 0.9;
+      }
+
+      .login-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-container">
+      <h1>Focus Dashboard</h1>
+      <p class="subtitle">Enter your access key</p>
+
+      <form id="login-form">
+        <div class="key-inputs">
+          <input type="text" class="key-input" id="word1" placeholder="word" autocomplete="off" autocapitalize="off" />
+          <span class="dot">.</span>
+          <input type="text" class="key-input" id="word2" placeholder="word" autocomplete="off" autocapitalize="off" />
+          <span class="dot">.</span>
+          <input type="text" class="key-input" id="word3" placeholder="word" autocomplete="off" autocapitalize="off" />
+        </div>
+
+        <p class="error" id="error">Invalid access key</p>
+
+        <button type="submit" class="login-btn" id="login-btn">Enter</button>
+      </form>
+    </div>
+
+    <script>
+      const form = document.getElementById('login-form') as HTMLFormElement;
+      const word1 = document.getElementById('word1') as HTMLInputElement;
+      const word2 = document.getElementById('word2') as HTMLInputElement;
+      const word3 = document.getElementById('word3') as HTMLInputElement;
+      const error = document.getElementById('error') as HTMLElement;
+      const btn = document.getElementById('login-btn') as HTMLButtonElement;
+
+      // Auto-advance on dot or space
+      [word1, word2, word3].forEach((input, i, inputs) => {
+        input.addEventListener('input', (e) => {
+          const value = input.value;
+          if (value.includes('.') || value.includes(' ')) {
+            input.value = value.replace(/[. ]/g, '');
+            if (i < 2) inputs[i + 1].focus();
+          }
+          error.classList.remove('show');
+        });
+
+        input.addEventListener('keydown', (e) => {
+          if (e.key === '.' || e.key === ' ') {
+            e.preventDefault();
+            if (i < 2) inputs[i + 1].focus();
+          }
+        });
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const key = `${word1.value.toLowerCase().trim()}.${word2.value.toLowerCase().trim()}.${word3.value.toLowerCase().trim()}`;
+
+        if (!word1.value || !word2.value || !word3.value) {
+          error.textContent = 'Please enter all three words';
+          error.classList.add('show');
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Checking...';
+
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key })
+          });
+
+          if (res.ok) {
+            window.location.href = '/';
+          } else {
+            const data = await res.json();
+            error.textContent = data.error || 'Invalid access key';
+            error.classList.add('show');
+          }
+        } catch (err) {
+          error.textContent = 'Connection error';
+          error.classList.add('show');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Enter';
+      });
+
+      word1.focus();
+    </script>
+  </body>
+</html>

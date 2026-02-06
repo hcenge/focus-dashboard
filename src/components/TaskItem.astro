@@ -1,0 +1,75 @@
+---
+import type { Task } from '@/lib/db';
+
+interface Props {
+  task: Task;
+  showLeftBtn?: boolean;
+  showRightBtn?: boolean;
+}
+
+const { task, showLeftBtn = true, showRightBtn = true } = Astro.props;
+---
+
+<div class="task" data-id={task.id}>
+  <span class="task-text">{task.text}</span>
+  <div class="task-actions">
+    {showLeftBtn && (
+      <button class="move-btn" data-dir="left" title="Move left">←</button>
+    )}
+    {showRightBtn && (
+      <button class="move-btn" data-dir="right" title="Move right">→</button>
+    )}
+    <button class="delete-btn" title="Delete">×</button>
+  </div>
+</div>
+
+<style>
+  .task {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .task-text {
+    font-size: 0.9rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .task-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .move-btn, .delete-btn {
+    background: none;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .move-btn:hover, .move-btn:active {
+    background: var(--light-gray);
+  }
+
+  .delete-btn:hover, .delete-btn:active {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+</style>

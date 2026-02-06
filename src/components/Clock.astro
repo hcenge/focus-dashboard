@@ -1,0 +1,142 @@
+---
+
+---
+
+<div class="clock-container">
+  <svg class="analog-clock" viewBox="0 0 100 100" id="analog-clock">
+    <!-- Hour elapsed fill (will be updated by JS) -->
+    <path id="hour-fill" class="hour-fill" d="" />
+
+    <!-- Clock face outline -->
+    <circle cx="50" cy="50" r="46" class="clock-face" />
+
+    <!-- Hour markers -->
+    <g class="hour-markers">
+      {[...Array(12)].map((_, i) => {
+        const angle = (i * 30 - 90) * (Math.PI / 180);
+        const x1 = 50 + 38 * Math.cos(angle);
+        const y1 = 50 + 38 * Math.sin(angle);
+        const x2 = 50 + 43 * Math.cos(angle);
+        const y2 = 50 + 43 * Math.sin(angle);
+        return <line x1={x1} y1={y1} x2={x2} y2={y2} class="marker" />;
+      })}
+    </g>
+
+    <!-- Hour hand -->
+    <line id="hour-hand" x1="50" y1="50" x2="50" y2="26" class="hour-hand" />
+
+    <!-- Minute hand -->
+    <line id="minute-hand" x1="50" y1="50" x2="50" y2="16" class="minute-hand" />
+
+    <!-- Center dot -->
+    <circle cx="50" cy="50" r="3" class="center-dot" />
+  </svg>
+  <div class="date-title" id="date-title"></div>
+</div>
+
+<script>
+  function updateClock() {
+    const now = new Date();
+    const hours = now.getHours() % 12;
+    const minutes = now.getMinutes();
+
+    // Update hands
+    const hourAngle = (hours * 30) + (minutes * 0.5) - 90;
+    const minuteAngle = (minutes * 6) - 90;
+
+    const hourHand = document.getElementById('hour-hand');
+    const minuteHand = document.getElementById('minute-hand');
+
+    if (hourHand) {
+      hourHand.setAttribute('transform', `rotate(${hourAngle + 90}, 50, 50)`);
+    }
+    if (minuteHand) {
+      minuteHand.setAttribute('transform', `rotate(${minuteAngle + 90}, 50, 50)`);
+    }
+
+    // Update hour elapsed fill (pie slice from 12 o'clock to current minute)
+    const hourFill = document.getElementById('hour-fill');
+    if (hourFill) {
+      const startAngle = -90 * (Math.PI / 180); // 12 o'clock
+      const endAngle = (minutes * 6 - 90) * (Math.PI / 180);
+
+      const x1 = 50 + 46 * Math.cos(startAngle);
+      const y1 = 50 + 46 * Math.sin(startAngle);
+      const x2 = 50 + 46 * Math.cos(endAngle);
+      const y2 = 50 + 46 * Math.sin(endAngle);
+
+      const largeArc = minutes > 30 ? 1 : 0;
+
+      if (minutes === 0) {
+        hourFill.setAttribute('d', '');
+      } else {
+        hourFill.setAttribute('d', `M 50 50 L ${x1} ${y1} A 46 46 0 ${largeArc} 1 ${x2} ${y2} Z`);
+      }
+    }
+
+    // Update date title
+    const dateTitleEl = document.getElementById('date-title');
+
+    if (dateTitleEl) {
+      const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const month = now.toLocaleDateString('en-US', { month: 'short' });
+      const day = now.getDate();
+      dateTitleEl.textContent = `${weekday}, ${month} ${day}`;
+    }
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+
+<style>
+  .clock-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    height: 64px;
+  }
+
+  .analog-clock {
+    width: 64px;
+    height: 64px;
+  }
+
+  .clock-face {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 2;
+  }
+
+  .hour-fill {
+    fill: var(--light-gray);
+  }
+
+  .hour-markers .marker {
+    stroke: var(--fg);
+    stroke-width: 2;
+  }
+
+  .hour-hand {
+    stroke: var(--fg);
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  .minute-hand {
+    stroke: var(--fg);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .center-dot {
+    fill: var(--fg);
+  }
+
+  .date-title {
+    font-size: 3rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+</style>

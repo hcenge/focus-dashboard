@@ -1,0 +1,390 @@
+---
+
+---
+
+<div class="timer-container" id="timer-container">
+  <svg class="timer-ring" viewBox="0 0 100 100" id="timer-ring">
+    <circle cx="50" cy="50" r="42" class="timer-progress" id="timer-progress" />
+  </svg>
+  <div class="timer-display" id="timer-display">
+    <span class="timer-time" id="timer-time">60:00</span>
+    <span class="timer-label" id="timer-label">tap to start</span>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="timer-modal" id="timer-modal">
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal-content">
+    <h2 class="modal-title" id="modal-title">Set Timer</h2>
+    <div class="time-grid">
+      <button class="time-option" data-minutes="5">5 min</button>
+      <button class="time-option" data-minutes="10">10 min</button>
+      <button class="time-option" data-minutes="15">15 min</button>
+      <button class="time-option" data-minutes="20">20 min</button>
+      <button class="time-option" data-minutes="25">25 min</button>
+      <button class="time-option" data-minutes="30">30 min</button>
+      <button class="time-option" data-minutes="45">45 min</button>
+      <button class="time-option" data-minutes="60">60 min</button>
+      <button class="time-option" data-minutes="90">90 min</button>
+      <button class="time-option" data-minutes="120">2 hr</button>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn reset-btn" id="reset-btn">Reset</button>
+      <button class="modal-btn cancel-btn" id="cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface TimerState {
+    duration: number;
+    remaining: number;
+    is_running: boolean;
+    task_id: number | null;
+  }
+
+  let state: TimerState = {
+    duration: 3600,
+    remaining: 3600,
+    is_running: false,
+    task_id: null
+  };
+
+  let localInterval: number | null = null;
+  const circumference = 2 * Math.PI * 42;
+
+  // Pending focus task (when user clicks focus on a task)
+  let pendingFocusTask: { taskId: number; taskText: string; taskEl: HTMLElement } | null = null;
+
+  async function fetchState() {
+    try {
+      const res = await fetch('/api/timer');
+      if (res.ok) {
+        state = await res.json();
+        updateDisplay();
+      }
+    } catch (e) {
+      // Ignore fetch errors
+    }
+  }
+
+  async function sendAction(action: string) {
+    try {
+      const res = await fetch('/api/timer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      if (res.ok) {
+        state = await res.json();
+        updateDisplay();
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  async function setDuration(minutes: number) {
+    try {
+      const body: any = { duration: minutes * 60 };
+
+      // If there's a pending focus task, set task_id too
+      if (pendingFocusTask) {
+        body.task_id = pendingFocusTask.taskId;
+      }
+
+      const res = await fetch('/api/timer', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        state = await res.json();
+        updateDisplay();
+        closeModal();
+
+        // If there was a pending focus task, confirm it and start timer
+        if (pendingFocusTask) {
+          window.dispatchEvent(new CustomEvent('focus-confirmed', {
+            detail: pendingFocusTask
+          }));
+          pendingFocusTask = null;
+
+          // Auto-start the timer
+          await sendAction('start');
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  function updateDisplay() {
+    const minutes = Math.floor(state.remaining / 60);
+    const seconds = state.remaining % 60;
+    const timeEl = document.getElementById('timer-time');
+    const labelEl = document.getElementById('timer-label');
+    const progressEl = document.getElementById('timer-progress') as SVGCircleElement | null;
+
+    if (timeEl) {
+      timeEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    if (labelEl) {
+      if (state.remaining === 0) {
+        labelEl.textContent = 'done!';
+      } else if (state.is_running) {
+        labelEl.textContent = 'tap to pause';
+      } else {
+        labelEl.textContent = 'tap to start';
+      }
+    }
+
+    if (progressEl) {
+      const progress = state.remaining / state.duration;
+      const visibleLength = circumference * progress;
+      progressEl.style.strokeDasharray = `${visibleLength} ${circumference}`;
+    }
+
+    // Update selected state in modal
+    document.querySelectorAll('.time-option').forEach(btn => {
+      const mins = Number((btn as HTMLElement).dataset.minutes);
+      btn.classList.toggle('selected', mins * 60 === state.duration);
+    });
+  }
+
+  function startLocalTick() {
+    if (localInterval) clearInterval(localInterval);
+    localInterval = window.setInterval(() => {
+      if (state.is_running && state.remaining > 0) {
+        state.remaining--;
+        updateDisplay();
+        if (state.remaining === 0) {
+          state.is_running = false;
+          updateDisplay();
+        }
+      }
+    }, 1000);
+  }
+
+  function openModal() {
+    const titleEl = document.getElementById('modal-title');
+    if (titleEl) {
+      titleEl.textContent = pendingFocusTask ? 'Focus Time' : 'Set Timer';
+    }
+    document.getElementById('timer-modal')?.classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('timer-modal')?.classList.remove('open');
+  }
+
+  // Click timer to start/pause
+  document.getElementById('timer-display')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (state.is_running) {
+      await sendAction('pause');
+    } else {
+      await sendAction('start');
+    }
+  });
+
+  // Long press or double-click to open modal
+  document.getElementById('timer-display')?.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    openModal();
+  });
+
+  document.getElementById('timer-display')?.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openModal();
+  });
+
+  // Modal interactions
+  function cancelModal() {
+    pendingFocusTask = null;
+    closeModal();
+  }
+
+  document.getElementById('modal-backdrop')?.addEventListener('click', cancelModal);
+  document.getElementById('cancel-btn')?.addEventListener('click', cancelModal);
+
+  document.getElementById('reset-btn')?.addEventListener('click', async () => {
+    await sendAction('reset');
+    closeModal();
+  });
+
+  document.querySelectorAll('.time-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const minutes = Number((btn as HTMLElement).dataset.minutes);
+      setDuration(minutes);
+    });
+  });
+
+  // Initialize
+  fetchState().then(() => {
+    startLocalTick();
+  });
+
+  // Sync state periodically
+  setInterval(fetchState, 10000);
+
+  // Listen for focus requests from kanban
+  window.addEventListener('request-focus', (e: Event) => {
+    const { taskId, taskText, taskEl } = (e as CustomEvent).detail;
+    pendingFocusTask = { taskId, taskText, taskEl };
+    openModal();
+  });
+</script>
+
+<style>
+  .timer-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 64px;
+    justify-content: center;
+  }
+
+  .timer-ring {
+    width: 64px;
+    height: 64px;
+    transform: rotate(-90deg);
+  }
+
+  .timer-progress {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  .timer-display {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .timer-time {
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timer-label {
+    font-size: 0.5rem;
+    color: var(--gray);
+    margin-top: 1px;
+  }
+
+  /* Modal styles */
+  .timer-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+  }
+
+  .timer-modal.open {
+    display: block;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg);
+    border: 2px solid var(--fg);
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 320px;
+    max-width: 90vw;
+  }
+
+  .modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .time-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .time-option {
+    padding: 16px 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .time-option:hover, .time-option:active {
+    background: var(--light-gray);
+  }
+
+  .time-option.selected {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .modal-btn {
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .reset-btn {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    color: var(--fg);
+  }
+
+  .reset-btn:hover {
+    background: var(--light-gray);
+  }
+
+  .cancel-btn {
+    background: var(--fg);
+    border: 2px solid var(--fg);
+    color: var(--bg);
+  }
+</style>

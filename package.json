@@ -1,0 +1,22 @@
+{
+  "name": "focus-dashboard",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "start": "node dist/server/entry.mjs",
+    "create-key": "node scripts/create-key.js"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.0.0",
+    "@carbon/icons": "^11.74.0",
+    "astro": "^5.0.0",
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "typescript": "^5.0.0"
+  }
+}

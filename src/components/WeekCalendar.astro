@@ -1,0 +1,74 @@
+---
+const today = new Date();
+const dayOfWeek = today.getDay();
+// Adjust to start on Monday (Monday = 0, Sunday = 6)
+const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+const startOfWeek = new Date(today);
+startOfWeek.setDate(today.getDate() + mondayOffset);
+
+const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+const days = dayLabels.map((label, i) => {
+  const date = new Date(startOfWeek);
+  date.setDate(startOfWeek.getDate() + i);
+  return {
+    label,
+    num: date.getDate(),
+    isToday: date.toDateString() === today.toDateString()
+  };
+});
+---
+
+<div class="week-container">
+  <div class="week">
+    {days.map(day => (
+      <div class="day">
+        <span class="day-name">{day.label}</span>
+        <span class={`day-num ${day.isToday ? 'today' : ''}`}>{day.num}</span>
+      </div>
+    ))}
+  </div>
+</div>
+
+<style>
+  .week-container {
+    display: flex;
+    align-items: center;
+    height: 64px;
+  }
+
+  .week {
+    display: flex;
+    gap: 4px;
+  }
+
+  .day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 24px;
+  }
+
+  .day-name {
+    font-size: 0.6rem;
+    color: var(--gray);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .day-num {
+    font-size: 0.8rem;
+    font-weight: 500;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .day-num.today {
+    background: var(--fg);
+    color: var(--bg);
+    border-radius: 50%;
+  }
+</style>

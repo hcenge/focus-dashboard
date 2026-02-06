@@ -1,0 +1,17 @@
+{
+  "name": "Focus Dashboard",
+  "short_name": "Focus",
+  "description": "Minimal focus dashboard for e-ink displays",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
