@@ -63,13 +63,25 @@ const { task, showLeftBtn = true, showRightBtn = true } = Astro.props;
     font-weight: 600;
   }
 
-  .move-btn:hover, .move-btn:active {
+  .move-btn:active {
     background: var(--light-gray);
   }
 
-  .delete-btn:hover, .delete-btn:active {
+  .delete-btn:active {
     background: var(--fg);
     color: var(--bg);
     border-color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    .move-btn:hover {
+      background: var(--light-gray);
+    }
+
+    .delete-btn:hover {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
   }
 </style>

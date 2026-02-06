@@ -54,7 +54,13 @@ const tasksByStatus = {
 
     <!-- Focus Column -->
     <div class="column focus-column" data-status="focus">
-      <h2 class="column-header">Focus</h2>
+      <h2 class="column-header">
+        Focus
+        <button class="fullscreen-btn" id="fullscreen-btn" title="Toggle fullscreen">
+          <svg class="expand-icon" viewBox="0 0 32 32"><path d="M20 2 20 4 26.586 4 18 12.582 19.414 14 28 5.414 28 12 30 12 30 2 20 2z"/><path d="M14 19.416 12.592 18 4 26.586 4 20 2 20 2 30 12 30 12 28 5.414 28 14 19.416z"/></svg>
+          <svg class="collapse-icon" viewBox="0 0 32 32"><path d="M4 18 4 20 10.586 20 2 28.582 3.414 30 12 21.414 12 28 14 28 14 18 4 18z"/><path d="M30 3.416 28.592 2 20 10.586 20 4 18 4 18 14 28 14 28 12 21.414 12 30 3.416z"/></svg>
+        </button>
+      </h2>
       <div class="focus-area" data-column="focus">
         {tasksByStatus.focus.length > 0 ? (
           tasksByStatus.focus.map(task => (
@@ -136,12 +142,12 @@ const tasksByStatus = {
 
     <!-- Tab switcher -->
     <div class="timer-tabs">
-      <button class="timer-tab active" data-tab="until">Until</button>
-      <button class="timer-tab" data-tab="duration">Duration</button>
+      <button class="timer-tab" data-tab="until">Until</button>
+      <button class="timer-tab active" data-tab="duration">Duration</button>
     </div>
 
     <!-- Until time picker -->
-    <div class="timer-panel active" id="panel-until">
+    <div class="timer-panel" id="panel-until">
       <div class="time-picker">
         <div class="picker-column">
           <div class="picker-highlight"></div>
@@ -155,7 +161,7 @@ const tasksByStatus = {
     </div>
 
     <!-- Duration picker -->
-    <div class="timer-panel" id="panel-duration">
+    <div class="timer-panel active" id="panel-duration">
       <div class="time-picker">
         <div class="picker-column">
           <div class="picker-highlight"></div>
@@ -442,6 +448,22 @@ const tasksByStatus = {
   document.getElementById('add-cancel-btn')?.addEventListener('click', closeAddModal);
   document.getElementById('add-another-btn')?.addEventListener('click', addAnotherInput);
 
+  // Fullscreen toggle
+  document.getElementById('fullscreen-btn')?.addEventListener('click', () => {
+    const kanban = document.querySelector('.kanban');
+    kanban?.classList.toggle('fullscreen');
+  });
+
+  // Escape key exits fullscreen
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const kanban = document.querySelector('.kanban.fullscreen');
+      if (kanban) {
+        kanban.classList.remove('fullscreen');
+      }
+    }
+  });
+
   document.getElementById('add-confirm-btn')?.addEventListener('click', async () => {
     const inputs = document.querySelectorAll('.add-task-input') as NodeListOf<HTMLInputElement>;
     const texts = Array.from(inputs).map(i => i.value.trim()).filter(t => t.length > 0);
@@ -475,12 +497,14 @@ const tasksByStatus = {
     }
   });
 
-  // Timer modal
-  let activeTab = 'until';
-  let selectedUntilHour = 0;
-  let selectedUntilMinute = 0;
-  let selectedDurationHours = 0;
-  let selectedDurationMinutes = 30;
+  // Timer modal - default to duration tab with 1 hour
+  let activeTab = 'duration';
+  // Default "until" to 1 hour from now
+  const defaultUntil = new Date(Date.now() + 60 * 60 * 1000);
+  let selectedUntilHour = defaultUntil.getHours();
+  let selectedUntilMinute = Math.floor(defaultUntil.getMinutes() / 5) * 5; // Round to nearest 5 min
+  let selectedDurationHours = 1;
+  let selectedDurationMinutes = 0;
 
   const ITEM_HEIGHT = 40;
 
@@ -574,11 +598,14 @@ const tasksByStatus = {
       hours.push(String(h).padStart(2, '0'));
     }
 
-    selectedUntilHour = minHour;
+    // Find index of the selected hour (default is 1 hour from now)
+    const hourStr = String(selectedUntilHour).padStart(2, '0');
+    let hourIndex = hours.indexOf(hourStr);
+    if (hourIndex === -1) hourIndex = 0;
 
     const hoursContainer = document.getElementById('until-hours');
     if (hoursContainer) {
-      populatePicker(hoursContainer, hours, 0, (index) => {
+      populatePicker(hoursContainer, hours, hourIndex, (index) => {
         selectedUntilHour = parseInt(hours[index]);
         updateUntilMinutes();
       });
@@ -602,11 +629,17 @@ const tasksByStatus = {
       minutes.push('00');
     }
 
-    selectedUntilMinute = parseInt(minutes[0]);
+    // Find index of the selected minute (default is rounded to nearest 5)
+    const minStr = String(selectedUntilMinute).padStart(2, '0');
+    let minIndex = minutes.indexOf(minStr);
+    if (minIndex === -1) {
+      minIndex = 0;
+      selectedUntilMinute = parseInt(minutes[0]);
+    }
 
     const minutesContainer = document.getElementById('until-minutes');
     if (minutesContainer) {
-      populatePicker(minutesContainer, minutes, 0, (index) => {
+      populatePicker(minutesContainer, minutes, minIndex, (index) => {
         selectedUntilMinute = parseInt(minutes[index]);
       });
     }
@@ -890,6 +923,13 @@ const tasksByStatus = {
     height: 100%;
   }
 
+  @media (max-width: 600px) {
+    .kanban {
+      height: auto;
+      min-height: 100%;
+    }
+  }
+
   .add-task-btn {
     width: 100%;
     padding: 10px;
@@ -909,9 +949,16 @@ const tasksByStatus = {
     fill: currentColor;
   }
 
-  .add-task-btn:hover, .add-task-btn:active {
+  .add-task-btn:active {
     border-color: var(--fg);
     color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    .add-task-btn:hover {
+      border-color: var(--fg);
+      color: var(--fg);
+    }
   }
 
   /* Add Modal */
@@ -1009,9 +1056,11 @@ const tasksByStatus = {
     fill: currentColor;
   }
 
-  .add-modal-btn.secondary:hover {
-    border-color: var(--fg);
-    color: var(--fg);
+  @media (hover: hover) {
+    .add-modal-btn.secondary:hover {
+      border-color: var(--fg);
+      color: var(--fg);
+    }
   }
 
   .add-modal-btn.cancel {
@@ -1044,6 +1093,60 @@ const tasksByStatus = {
     flex: 1.2;
   }
 
+  /* Mobile responsive layout */
+  @media (max-width: 600px) {
+    .columns {
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .column {
+      flex: none;
+      min-height: auto;
+    }
+
+    .focus-column {
+      flex: none;
+      order: -1; /* Show focus column first on mobile */
+    }
+
+    .tasks {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .focus-area {
+      min-height: auto;
+    }
+
+    :global(.focus-card) {
+      padding: 12px;
+    }
+
+    :global(.focus-bottom) {
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    :global(.focus-buttons) {
+      width: 100%;
+    }
+
+    :global(.focus-buttons-row) {
+      justify-content: center;
+    }
+
+    :global(.task) {
+      flex-wrap: wrap;
+    }
+
+    :global(.task-actions) {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+  }
+
   .column-header {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1054,6 +1157,133 @@ const tasksByStatus = {
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .fullscreen-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray);
+    margin-left: auto;
+  }
+
+  .fullscreen-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+
+  .fullscreen-btn .collapse-icon {
+    display: none;
+  }
+
+  .fullscreen-btn:active {
+    color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    .fullscreen-btn:hover {
+      color: var(--fg);
+    }
+  }
+
+  /* Fullscreen mode */
+  .kanban.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 200;
+    background: var(--bg);
+    padding: 24px;
+    box-sizing: border-box;
+  }
+
+  .kanban.fullscreen .columns {
+    height: 100%;
+  }
+
+  .kanban.fullscreen .column:not(.focus-column) {
+    display: none;
+  }
+
+  .kanban.fullscreen .focus-column {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+  }
+
+  .kanban.fullscreen .focus-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kanban.fullscreen .fullscreen-btn .expand-icon {
+    display: none;
+  }
+
+  .kanban.fullscreen .fullscreen-btn .collapse-icon {
+    display: block;
+  }
+
+  .kanban.fullscreen :global(.focus-card) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: none;
+    max-width: 500px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .kanban.fullscreen :global(.focus-task-text) {
+    font-size: 2rem;
+  }
+
+  .kanban.fullscreen :global(.timer-value) {
+    font-size: 4rem;
+  }
+
+  .kanban.fullscreen :global(.focus-bottom) {
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .kanban.fullscreen :global(.timer-time-container) {
+    align-items: center;
+  }
+
+  .kanban.fullscreen :global(.focus-buttons) {
+    align-items: center;
+  }
+
+  @media (max-width: 600px) {
+    .kanban.fullscreen {
+      padding: 16px;
+    }
+
+    .kanban.fullscreen :global(.focus-card) {
+      max-width: none;
+      padding: 16px;
+    }
+
+    .kanban.fullscreen :global(.focus-task-text) {
+      font-size: 1.5rem;
+    }
+
+    .kanban.fullscreen :global(.timer-value) {
+      font-size: 3rem;
+    }
   }
 
   .count {
@@ -1143,6 +1373,7 @@ const tasksByStatus = {
     align-items: center;
     justify-content: center;
     padding: 8px;
+    color: var(--fg);
   }
 
   :global(.action-btn svg) {
@@ -1151,7 +1382,7 @@ const tasksByStatus = {
     fill: currentColor;
   }
 
-  :global(.action-btn:hover), :global(.action-btn:active) {
+  :global(.action-btn:active) {
     background: var(--light-gray);
   }
 
@@ -1159,21 +1390,44 @@ const tasksByStatus = {
     border-color: var(--fg);
   }
 
-  :global(.focus-btn:hover), :global(.focus-btn:active) {
+  :global(.focus-btn:active) {
     background: var(--fg);
     color: var(--bg);
   }
 
-  :global(.done-btn:hover), :global(.done-btn:active) {
+  :global(.done-btn:active) {
     background: var(--fg);
     color: var(--bg);
     border-color: var(--fg);
   }
 
-  :global(.delete-btn:hover), :global(.delete-btn:active) {
+  :global(.delete-btn:active) {
     background: var(--fg);
     color: var(--bg);
     border-color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    :global(.action-btn:hover) {
+      background: var(--light-gray);
+    }
+
+    :global(.focus-btn:hover) {
+      background: var(--fg);
+      color: var(--bg);
+    }
+
+    :global(.done-btn:hover) {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
+
+    :global(.delete-btn:hover) {
+      background: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
   }
 
   /* Focus Area */
@@ -1280,9 +1534,16 @@ const tasksByStatus = {
     fill: currentColor;
   }
 
-  :global(.focus-control-btn:hover), :global(.focus-control-btn:active) {
+  :global(.focus-control-btn:active) {
     background: var(--light-gray);
     color: var(--fg);
+  }
+
+  @media (hover: hover) {
+    :global(.focus-control-btn:hover) {
+      background: var(--light-gray);
+      color: var(--fg);
+    }
   }
 
   /* Timer Modal */

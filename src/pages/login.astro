@@ -16,13 +16,34 @@ if (authKey) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login - Focus Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+    <script>
+      // Apply theme immediately to prevent flash
+      (function() {
+        const stored = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = stored || (prefersDark ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
     <style>
-      :root {
+      /* Light theme (default) */
+      :root, [data-theme="light"] {
         --bg: #ffffff;
         --fg: #000000;
         --gray: #666666;
         --light-gray: #e5e5e5;
         --border: #cccccc;
+        color-scheme: light;
+      }
+
+      /* Dark theme */
+      [data-theme="dark"] {
+        --bg: #1a1a1a;
+        --fg: #ffffff;
+        --gray: #999999;
+        --light-gray: #333333;
+        --border: #444444;
+        color-scheme: dark;
       }
 
       * {
@@ -75,6 +96,8 @@ if (authKey) {
         border-radius: 8px;
         text-align: center;
         text-transform: lowercase;
+        background: var(--bg);
+        color: var(--fg);
       }
 
       .key-input:focus {
@@ -110,8 +133,14 @@ if (authKey) {
         cursor: pointer;
       }
 
-      .login-btn:hover {
+      .login-btn:active {
         opacity: 0.9;
+      }
+
+      @media (hover: hover) {
+        .login-btn:hover {
+          opacity: 0.9;
+        }
       }
 
       .login-btn:disabled {

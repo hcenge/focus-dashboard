@@ -348,7 +348,7 @@
     cursor: pointer;
   }
 
-  .time-option:hover, .time-option:active {
+  .time-option:active {
     background: var(--light-gray);
   }
 
@@ -378,8 +378,14 @@
     color: var(--fg);
   }
 
-  .reset-btn:hover {
-    background: var(--light-gray);
+  @media (hover: hover) {
+    .time-option:hover {
+      background: var(--light-gray);
+    }
+
+    .reset-btn:hover {
+      background: var(--light-gray);
+    }
   }
 
   .cancel-btn {
